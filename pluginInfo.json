@@ -1,13 +1,18 @@
 {
+    "repoName": "fpp-servo-calibrator",
     "name": "Animatronic Servo Calibrator",
-    "version": "1.0.0",
-    "author": "Animatronic Motion System",
-    "description": "Mixer-style servo calibration tool for PCA9685 outputs. Writes directly to PCA9685 via I2C (bypasses FPP output system), lets you drag per-channel faders and type exact min/max values, then saves back to co-other.json.",
-    "homeURL": "https://github.com/pgianotto/animatronic-motion-system",
-    "repoURL": "https://github.com/pgianotto/animatronic-motion-system",
-    "bugURL": "",
-    "minFPPVersion": "6.0",
-    "maxFPPVersion": "",
-    "packageDependencies": [],
-    "pluginDependencies": []
+    "author": "pgianotto",
+    "description": "Mixer-style servo calibration tool for PCA9685 outputs. Drag per-channel faders, set min/max/center values, and save back to co-other.json.",
+    "homeURL": "https://github.com/pgianotto/fpp-servo-calibrator",
+    "srcURL": "https://github.com/pgianotto/fpp-servo-calibrator.git",
+    "bugURL": "https://github.com/pgianotto/fpp-servo-calibrator/issues",
+    "allowUpdates": 1,
+    "versions": [
+        {
+            "minFPPVersion": "6.0",
+            "maxFPPVersion": "0",
+            "branch": "master",
+            "sha": ""
+        }
+    ]
 }
