@@ -2,14 +2,46 @@
 """Persistent servo daemon for fpp-servo-calibrator.
 Keeps the I2C bus open so per-command latency is ~2ms instead of ~150ms."""
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, signal, sys, time
+import json, os, signal, sys, time, urllib.request
 import smbus2
 
-CONFIG   = '/home/fpp/media/config/co-other.json'
-HOST     = '127.0.0.1'
-PORT_NUM = 5003
+CONFIG        = '/home/fpp/media/config/co-other.json'
+HOST          = '127.0.0.1'
+PORT_NUM      = 5003
+_CO_OTHER_API = 'http://localhost/api/channel/output/co-other'
 
 outputs = []
+
+
+def _set_fpp_pca9685_output(enabled: bool):
+    """Disable (via API) or re-enable (via file write) fppd's PCA9685 output.
+
+    When enabled=False the FPP API triggers an immediate fppd reload so it
+    stops writing to the chip.  Re-enabling via the same API causes fppd to
+    enter a crash/restart loop, so we only write the config file; fppd picks
+    it up on its next clean restart.
+    """
+    try:
+        with urllib.request.urlopen(_CO_OTHER_API, timeout=3) as resp:
+            cfg = json.loads(resp.read())
+        changed = False
+        for out in cfg.get('channelOutputs', []):
+            if out.get('type') == 'PCA9685':
+                out['enabled'] = 1 if enabled else 0
+                changed = True
+        if not changed:
+            return
+        if not enabled:
+            data = json.dumps(cfg).encode()
+            req  = urllib.request.Request(_CO_OTHER_API, data=data, method='POST',
+                                          headers={'Content-Type': 'application/json'})
+            urllib.request.urlopen(req, timeout=3)
+            print('[ServoCalibrator] FPP PCA9685 output disabled.')
+        else:
+            open(CONFIG, 'w').write(json.dumps(cfg, indent=2))
+            print('[ServoCalibrator] FPP PCA9685 re-enabled in config (takes effect on next fppd restart).')
+    except Exception as exc:
+        print(f'[ServoCalibrator] Could not toggle FPP PCA9685 output: {exc}', file=sys.stderr)
 
 def load_outputs():
     with open(CONFIG) as f:
@@ -115,6 +147,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     global outputs
+    _set_fpp_pca9685_output(False)
     try:
         outputs = load_outputs()
     except Exception as e:
@@ -123,6 +156,7 @@ def main():
 
     def shutdown(sig, frame):
         close_outputs(outputs)
+        _set_fpp_pca9685_output(True)
         sys.exit(0)
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT,  shutdown)
