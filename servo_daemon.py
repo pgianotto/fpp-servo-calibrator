@@ -16,7 +16,7 @@ def load_outputs():
         cfg = json.load(f)
     result = []
     for out in cfg.get('channelOutputs', []):
-        if not out.get('ports') or not out.get('enabled'):
+        if not out.get('ports'):
             continue
         dev  = out.get('device', 'i2c-1')
         addr = out.get('deviceID', 0x40)
