@@ -148,6 +148,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     global outputs
     _set_fpp_pca9685_output(False)
+    time.sleep(0.5)  # let fppd finish its reload before we open I2C
     try:
         outputs = load_outputs()
     except Exception as e:
