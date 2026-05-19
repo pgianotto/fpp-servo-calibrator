@@ -23,8 +23,8 @@ Type=simple
 User=fpp
 ExecStartPre=/bin/sleep 8
 ExecStart=/usr/bin/python3 PLUGIN_DIR_PLACEHOLDER/servo_daemon.py
-Restart=on-failure
-RestartSec=3
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
