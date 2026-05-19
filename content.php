@@ -197,12 +197,27 @@ let scRampInFlight  = false;
 
 /* ── FPP API ──────────────────────────────────────────────── */
 
+function scShowErr(msg) {
+    const el = document.getElementById('sc-savemsg');
+    if (!el) return;
+    el.style.color = '#e63946';
+    el.textContent = '✗ ' + msg;
+    clearTimeout(scShowErr._t);
+    scShowErr._t = setTimeout(() => { el.textContent = ''; }, 6000);
+}
+
 async function scCmd(payload) {
-    await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ out: SC.outIdx, ...payload })
-    }).catch(() => {});
+    try {
+        const r = await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ out: SC.outIdx, ...payload })
+        });
+        const d = await r.json().catch(() => null);
+        if (d && d.status === 'error') scShowErr(d.message);
+    } catch (e) {
+        scShowErr('Cannot reach servo daemon');
+    }
 }
 
 async function scSendCh(port, us) {
@@ -212,11 +227,17 @@ async function scSendCh(port, us) {
 
 async function scSendAll(channels) {
     if (!channels.length) return;
-    await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ out: SC.outIdx, action: 'set_all', channels })
-    }).catch(() => {});
+    try {
+        const r = await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ out: SC.outIdx, action: 'set_all', channels })
+        });
+        const d = await r.json().catch(() => null);
+        if (d && d.status === 'error') scShowErr(d.message);
+    } catch (e) {
+        scShowErr('Cannot reach servo daemon');
+    }
 }
 
 async function scStop() {
