@@ -13,9 +13,10 @@ _CO_OTHER_API = 'http://localhost/api/channel/output/co-other'
 outputs = []
 
 
-def _set_fpp_pca9685_output(enabled: bool):
+def _set_fpp_pca9685_output(enabled: bool) -> bool:
     """Disable (via API) or re-enable (via file write) fppd's PCA9685 output.
 
+    Returns True on success, False on failure.
     When enabled=False the FPP API triggers an immediate fppd reload so it
     stops writing to the chip.  Re-enabling via the same API causes fppd to
     enter a crash/restart loop, so we only write the config file; fppd picks
@@ -30,7 +31,7 @@ def _set_fpp_pca9685_output(enabled: bool):
                 out['enabled'] = 1 if enabled else 0
                 changed = True
         if not changed:
-            return
+            return True
         if not enabled:
             data = json.dumps(cfg).encode()
             req  = urllib.request.Request(_CO_OTHER_API, data=data, method='POST',
@@ -40,8 +41,10 @@ def _set_fpp_pca9685_output(enabled: bool):
         else:
             open(CONFIG, 'w').write(json.dumps(cfg, indent=2))
             print('[ServoCalibrator] FPP PCA9685 re-enabled in config (takes effect on next fppd restart).')
+        return True
     except Exception as exc:
         print(f'[ServoCalibrator] Could not toggle FPP PCA9685 output: {exc}', file=sys.stderr)
+        return False
 
 def load_outputs():
     with open(CONFIG) as f:
@@ -147,7 +150,18 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     global outputs
-    _set_fpp_pca9685_output(False)
+    # Retry the disable call — Apache may not be ready immediately at boot.
+    for attempt in range(15):
+        if _set_fpp_pca9685_output(False):
+            break
+        print(f'[ServoCalibrator] Waiting for FPP API (attempt {attempt + 1}/15)...')
+        time.sleep(4)
+    else:
+        print('[ServoCalibrator] ERROR: Could not disable FPP PCA9685 output after 15 attempts. '
+              'Servo calibrator cannot safely open I2C while fppd is driving the chip.',
+              file=sys.stderr)
+        sys.exit(1)
+
     time.sleep(0.5)  # let fppd finish its reload before we open I2C
     try:
         outputs = load_outputs()
