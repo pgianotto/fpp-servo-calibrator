@@ -215,8 +215,10 @@ async function scCmd(payload) {
         });
         const d = await r.json().catch(() => null);
         if (d && d.status === 'error') scShowErr(d.message);
+        return d;
     } catch (e) {
         scShowErr('Cannot reach servo daemon');
+        return null;
     }
 }
 

@@ -12,7 +12,7 @@ $ctx = stream_context_create(['http' => [
     'method'        => 'POST',
     'header'        => "Content-Type: application/json\r\n",
     'content'       => $body,
-    'timeout'       => 3,
+    'timeout'       => 10,
     'ignore_errors' => true,
 ]]);
 $result = @file_get_contents('http://127.0.0.1:5003/', false, $ctx);
