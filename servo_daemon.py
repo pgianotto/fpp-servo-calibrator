@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
 """Persistent servo daemon for fpp-servo-calibrator.
-Keeps the I2C bus open so per-command latency is ~2ms instead of ~150ms."""
+Keeps the I2C bus open so per-command latency is ~2ms instead of ~150ms.
+
+I2C ownership is on-demand — the daemon starts without touching the bus or
+disabling fppd's PCA9685 output.  When the user enables test mode the UI
+sends action=open, which disables fppd's output and claims the I2C bus.
+action=close releases the bus and re-enables fppd's output immediately via
+the FPP API so other plugins (e.g. live-follow) are not affected.
+"""
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import json, os, signal, sys, time, urllib.request
+import json, signal, sys, time, urllib.request
 import smbus2
 
 CONFIG        = '/home/fpp/media/config/co-other.json'
@@ -10,17 +17,15 @@ HOST          = '127.0.0.1'
 PORT_NUM      = 5003
 _CO_OTHER_API = 'http://localhost/api/channel/output/co-other'
 
-outputs = []
+outputs   = []
+i2c_open  = False   # True only while we hold the I2C bus
 
 
 def _set_fpp_pca9685_output(enabled: bool) -> bool:
-    """Disable (via API) or re-enable (via file write) fppd's PCA9685 output.
+    """Enable or disable fppd's PCA9685 output via the FPP API.
 
-    Returns True on success, False on failure.
-    When enabled=False the FPP API triggers an immediate fppd reload so it
-    stops writing to the chip.  Re-enabling via the same API causes fppd to
-    enter a crash/restart loop, so we only write the config file; fppd picks
-    it up on its next clean restart.
+    Both enable and disable use the API so the change takes effect immediately
+    without waiting for an fppd restart.  Returns True on success.
     """
     try:
         with urllib.request.urlopen(_CO_OTHER_API, timeout=3) as resp:
@@ -32,19 +37,16 @@ def _set_fpp_pca9685_output(enabled: bool) -> bool:
                 changed = True
         if not changed:
             return True
-        if not enabled:
-            data = json.dumps(cfg).encode()
-            req  = urllib.request.Request(_CO_OTHER_API, data=data, method='POST',
-                                          headers={'Content-Type': 'application/json'})
-            urllib.request.urlopen(req, timeout=3)
-            print('[ServoCalibrator] FPP PCA9685 output disabled.')
-        else:
-            open(CONFIG, 'w').write(json.dumps(cfg, indent=2))
-            print('[ServoCalibrator] FPP PCA9685 re-enabled in config (takes effect on next fppd restart).')
+        data = json.dumps(cfg).encode()
+        req  = urllib.request.Request(_CO_OTHER_API, data=data, method='POST',
+                                      headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=3)
+        print(f'[ServoCalibrator] FPP PCA9685 output {"enabled" if enabled else "disabled"}.')
         return True
     except Exception as exc:
         print(f'[ServoCalibrator] Could not toggle FPP PCA9685 output: {exc}', file=sys.stderr)
         return False
+
 
 def load_outputs():
     with open(CONFIG) as f:
@@ -65,13 +67,16 @@ def load_outputs():
         result.append({'bus': bus, 'addr': addr, 'freq': freq, 'ports': out['ports']})
     return result
 
+
 def close_outputs(outs):
     for o in outs:
         try: o['bus'].close()
         except: pass
 
+
 def us_to_counts(us, freq):
     return round(us * freq * 4096 / 1_000_000)
+
 
 def set_ch(bus, addr, ch, counts):
     base = 0x06 + ch * 4
@@ -79,6 +84,54 @@ def set_ch(bus, addr, ch, counts):
     bus.write_byte_data(addr, base+1, 0)
     bus.write_byte_data(addr, base+2, counts & 0xFF)
     bus.write_byte_data(addr, base+3, counts >> 8)
+
+
+def do_open() -> str | None:
+    """Claim the I2C bus: disable fppd's PCA9685 output then open smbus2.
+
+    Returns None on success, error string on failure.
+    """
+    global outputs, i2c_open
+    if i2c_open:
+        return None
+    for attempt in range(8):
+        if _set_fpp_pca9685_output(False):
+            break
+        print(f'[ServoCalibrator] Waiting for FPP API (attempt {attempt + 1}/8)...')
+        time.sleep(2)
+    else:
+        return 'Could not disable FPP PCA9685 output'
+    time.sleep(0.5)
+    try:
+        close_outputs(outputs)
+        outputs  = load_outputs()
+        i2c_open = True
+        return None
+    except Exception as exc:
+        _set_fpp_pca9685_output(True)
+        return str(exc)
+
+
+def do_close():
+    """Release the I2C bus: center servos, close smbus2, re-enable fppd output."""
+    global outputs, i2c_open
+    if not i2c_open:
+        return
+    for o in outputs:
+        bus, addr, freq, ports = o['bus'], o['addr'], o['freq'], o['ports']
+        for i, p in enumerate(ports):
+            mn  = p.get('min', 500)
+            mx  = p.get('max', 2500)
+            ctr = p.get('center', (mn + mx) // 2)
+            try:
+                set_ch(bus, addr, i, us_to_counts(ctr, freq))
+            except Exception:
+                pass
+    close_outputs(outputs)
+    outputs  = []
+    i2c_open = False
+    _set_fpp_pca9685_output(True)
+
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
@@ -92,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        global outputs
+        global outputs, i2c_open
         try:
             length = int(self.headers.get('Content-Length', 0))
             req    = json.loads(self.rfile.read(length))
@@ -103,13 +156,33 @@ class Handler(BaseHTTPRequestHandler):
         action  = req.get('action', '')
         out_idx = int(req.get('out', 0))
 
+        if action == 'open':
+            err = do_open()
+            if err:
+                self.reply(500, {'status': 'error', 'message': err})
+            else:
+                self.reply(200, {'status': 'ok', 'action': 'open'})
+            return
+
+        if action == 'close':
+            do_close()
+            self.reply(200, {'status': 'ok', 'action': 'close'})
+            return
+
         if action == 'reload':
+            if not i2c_open:
+                self.reply(400, {'status': 'error', 'message': 'Not open — call open first'})
+                return
             try:
                 close_outputs(outputs)
                 outputs = load_outputs()
                 self.reply(200, {'status': 'ok', 'action': 'reload'})
             except Exception as e:
                 self.reply(500, {'status': 'error', 'message': str(e)})
+            return
+
+        if not i2c_open:
+            self.reply(400, {'status': 'error', 'message': 'Not open — call open first'})
             return
 
         if out_idx < 0 or out_idx >= len(outputs):
@@ -148,37 +221,18 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self.reply(500, {'status': 'error', 'message': str(e)})
 
+
 def main():
-    global outputs
-    # Retry the disable call — Apache may not be ready immediately at boot.
-    for attempt in range(15):
-        if _set_fpp_pca9685_output(False):
-            break
-        print(f'[ServoCalibrator] Waiting for FPP API (attempt {attempt + 1}/15)...')
-        time.sleep(4)
-    else:
-        print('[ServoCalibrator] ERROR: Could not disable FPP PCA9685 output after 15 attempts. '
-              'Servo calibrator cannot safely open I2C while fppd is driving the chip.',
-              file=sys.stderr)
-        sys.exit(1)
-
-    time.sleep(0.5)  # let fppd finish its reload before we open I2C
-    try:
-        outputs = load_outputs()
-    except Exception as e:
-        print(f'ERROR loading servo outputs: {e}', file=sys.stderr)
-        sys.exit(1)
-
     def shutdown(sig, frame):
-        close_outputs(outputs)
-        _set_fpp_pca9685_output(True)
+        do_close()
         sys.exit(0)
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT,  shutdown)
 
     server = HTTPServer((HOST, PORT_NUM), Handler)
-    print(f'Servo daemon listening on {HOST}:{PORT_NUM}', flush=True)
+    print(f'[ServoCalibrator] Daemon listening on {HOST}:{PORT_NUM} (I2C idle — send open to claim bus)', flush=True)
     server.serve_forever()
+
 
 if __name__ == '__main__':
     main()

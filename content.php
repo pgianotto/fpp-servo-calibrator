@@ -665,12 +665,29 @@ function scComputePhases() {
 
 /* ── Test controls ────────────────────────────────────────── */
 
-function scToggleTest() {
+async function scToggleTest() {
     SC.on = !SC.on;
     const b = document.getElementById('sc-enable');
     b.textContent = SC.on ? '■ Test Active' : 'Enable Test';
     b.classList.toggle('on', SC.on);
-    if (!SC.on) { scRampStop(); scApplyZeroBehaviors(); }
+    if (SC.on) {
+        b.disabled = true;
+        b.textContent = 'Opening…';
+        const r = await scCmd({ action: 'open' }).catch(() => null);
+        b.disabled = false;
+        if (!r || r.status !== 'ok') {
+            SC.on = false;
+            b.textContent = 'Enable Test';
+            b.classList.remove('on');
+            alert('Could not claim I2C bus: ' + (r?.message || 'daemon not responding'));
+            return;
+        }
+        b.textContent = '■ Test Active';
+    } else {
+        scRampStop();
+        scApplyZeroBehaviors();
+        await scCmd({ action: 'close' }).catch(() => null);
+    }
 }
 
 async function scCenterAll() {
