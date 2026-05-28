@@ -208,7 +208,7 @@ function scShowErr(msg) {
 
 async function scCmd(payload) {
     try {
-        const r = await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
+        const r = await fetch('/fpp-servo-calibrator-api/', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ out: SC.outIdx, ...payload })
@@ -230,7 +230,7 @@ async function scSendCh(port, us) {
 async function scSendAll(channels) {
     if (!channels.length) return;
     try {
-        const r = await fetch('plugin.php?plugin=fpp-servo-calibrator&page=cmd.php', {
+        const r = await fetch('/fpp-servo-calibrator-api/', {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ out: SC.outIdx, action: 'set_all', channels })

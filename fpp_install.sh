@@ -36,4 +36,19 @@ sudo systemctl enable fpp-servo-calibrator.service
 
 sudo systemctl restart fpp-servo-calibrator.service 2>/dev/null || true
 
+# ── Apache proxy (create once) ────────────────────────────────────────────────
+if [ ! -f "/etc/apache2/conf-available/fpp-servo-calibrator-proxy.conf" ]; then
+    echo "Configuring Apache proxy..."
+    sudo a2enmod proxy proxy_http 2>/dev/null || true
+    cat > /tmp/fpp-servo-calibrator-proxy.conf << 'EOF'
+<IfModule mod_proxy.c>
+    ProxyPass        /fpp-servo-calibrator-api/ http://localhost:5003/
+    ProxyPassReverse /fpp-servo-calibrator-api/ http://localhost:5003/
+</IfModule>
+EOF
+    sudo cp /tmp/fpp-servo-calibrator-proxy.conf /etc/apache2/conf-available/fpp-servo-calibrator-proxy.conf
+    sudo a2enconf fpp-servo-calibrator-proxy 2>/dev/null || true
+    sudo systemctl reload apache2 2>/dev/null || true
+fi
+
 echo "Done. Access via FPP menu: Plugins > Servo Calibrator"
