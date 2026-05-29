@@ -1,19 +1,19 @@
 {
-    "repoName": "fpp-servo-calibrator",
-    "name": "Animatronic Servo Calibrator",
-    "version": "1.0.0",
-    "author": "pgianotto",
-    "description": "Mixer-style servo calibration tool for PCA9685 outputs. Drag per-channel faders, set min/max/center values, and save back to co-other.json.",
-    "homeURL": "https://github.com/pgianotto/fpp-servo-calibrator",
-    "srcURL": "https://github.com/pgianotto/fpp-servo-calibrator.git",
-    "bugURL": "https://github.com/pgianotto/fpp-servo-calibrator/issues",
-    "allowUpdates": 1,
-    "versions": [
-        {
-            "minFPPVersion": "6.0",
-            "maxFPPVersion": "0",
-            "branch": "master",
-            "sha": "1553f9f783e042dc7489bdfbb71b8915c670f11d"
-        }
-    ]
+  "repoName": "fpp-servo-calibrator",
+  "name": "Animatronic Servo Calibrator",
+  "version": "1.0.0",
+  "author": "pgianotto",
+  "description": "Mixer-style servo calibration tool for PCA9685 outputs. Drag per-channel faders, set min/max/center values, and save back to co-other.json.",
+  "homeURL": "https://github.com/pgianotto/fpp-servo-calibrator",
+  "srcURL": "https://github.com/pgianotto/fpp-servo-calibrator.git",
+  "bugURL": "https://github.com/pgianotto/fpp-servo-calibrator/issues",
+  "allowUpdates": 1,
+  "versions": [
+    {
+      "minFPPVersion": "6.0",
+      "maxFPPVersion": "0",
+      "branch": "master",
+      "sha": "0c9db97072ce317d41610d5cc43b183d2267269e"
+    }
+  ]
 }
