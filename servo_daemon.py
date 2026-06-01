@@ -171,7 +171,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if action == 'reload':
             if not i2c_open:
-                self.reply(400, {'status': 'error', 'message': 'Not open — call open first'})
+                self.reply(200, {'status': 'ok', 'action': 'reload'})
                 return
             try:
                 close_outputs(outputs)
