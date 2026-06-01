@@ -39,14 +39,11 @@ sudo systemctl restart fpp-servo-calibrator.service 2>/dev/null || true
 # ── Apache proxy (always write so reinstalls and updates stay current) ────────
 echo "Configuring Apache proxy..."
 sudo a2enmod proxy proxy_http 2>/dev/null || true
-cat > /tmp/fpp-servo-calibrator-proxy.conf << 'EOF'
-<IfModule mod_proxy.c>
-    ProxyPass        /fpp-servo-calibrator-api/ http://localhost:5003/
-    ProxyPassReverse /fpp-servo-calibrator-api/ http://localhost:5003/
-</IfModule>
-EOF
-sudo cp /tmp/fpp-servo-calibrator-proxy.conf /etc/apache2/conf-available/fpp-servo-calibrator-proxy.conf
-sudo a2enconf fpp-servo-calibrator-proxy 2>/dev/null || true
+PROXY_CONF="/etc/apache2/conf-available/fpp-servo-calibrator-proxy.conf"
+printf '<IfModule mod_proxy.c>\n    ProxyPass        /fpp-servo-calibrator-api/ http://localhost:5003/\n    ProxyPassReverse /fpp-servo-calibrator-api/ http://localhost:5003/\n</IfModule>\n' \
+    | sudo tee "$PROXY_CONF" > /dev/null
+# Create the conf-enabled symlink directly rather than relying on a2enconf
+sudo ln -sf "$PROXY_CONF" /etc/apache2/conf-enabled/fpp-servo-calibrator-proxy.conf
 sudo systemctl reload apache2 2>/dev/null || true
 
 echo "Done. Access via FPP menu: Plugins > Servo Calibrator"
