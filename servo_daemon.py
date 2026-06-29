@@ -229,6 +229,10 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT,  shutdown)
 
+    # Re-enable FPP PCA9685 output in case a prior run left it disabled
+    # (e.g. daemon was killed with SIGKILL or crashed before do_close ran)
+    _set_fpp_pca9685_output(True)
+
     server = HTTPServer((HOST, PORT_NUM), Handler)
     print(f'[ServoCalibrator] Daemon listening on {HOST}:{PORT_NUM} (I2C idle — send open to claim bus)', flush=True)
     server.serve_forever()
