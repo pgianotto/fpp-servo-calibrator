@@ -46,4 +46,25 @@ printf '<IfModule mod_proxy.c>\n    ProxyPass        /fpp-servo-calibrator-api/ 
 sudo ln -sf "$PROXY_CONF" /etc/apache2/conf-enabled/fpp-servo-calibrator-proxy.conf
 sudo systemctl reload apache2 2>/dev/null || true
 
+# ── Post-OS-upgrade hook ──────────────────────────────────────────────────────
+HOOK_DIR="/home/fpp/media/hooks"
+HOOK_FILE="$HOOK_DIR/post-os-upgrade"
+mkdir -p "$HOOK_DIR"
+cat > "$HOOK_FILE" << 'HOOKEOF'
+#!/bin/bash
+# Re-install animatronic plugin services after FPP OS upgrade.
+# Runs automatically by FPP when the OS partition is re-imaged.
+echo "[post-os-upgrade] Re-installing animatronic plugin services..."
+for plugin in fpp-servo-calibrator fpp-live-follow; do
+    script="/home/fpp/media/plugins/$plugin/fpp_install.sh"
+    if [ -f "$script" ]; then
+        echo "  Running $plugin installer..."
+        bash "$script"
+    fi
+done
+echo "[post-os-upgrade] Done."
+HOOKEOF
+chmod +x "$HOOK_FILE"
+echo "Post-OS-upgrade hook installed at $HOOK_FILE"
+
 echo "Done. Access via FPP menu: Plugins > Servo Calibrator"
