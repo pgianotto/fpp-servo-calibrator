@@ -7,6 +7,7 @@
   "homeURL": "https://github.com/pgianotto/fpp-servo-calibrator",
   "srcURL": "https://github.com/pgianotto/fpp-servo-calibrator.git",
   "bugURL": "https://github.com/pgianotto/fpp-servo-calibrator/issues",
+  "iconURL": "https://raw.githubusercontent.com/pgianotto/fpp-servo-calibrator/master/icon.png",
   "allowUpdates": 1,
   "versions": [
     {
