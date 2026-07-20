@@ -16,6 +16,11 @@ import smbus2
 HOST          = '127.0.0.1'
 PORT_NUM      = 5003
 _CO_OTHER_API = 'http://localhost/api/channel/output/co-other'
+# Marker touched while we hold the I2C bus (PCA9685 output disabled) and
+# removed as soon as we release it cleanly. Only present across a restart if
+# a prior run crashed mid-test (e.g. SIGKILL) without reaching do_close() —
+# see main()'s startup check below.
+_STATE_FILE = Path('/home/fpp/media/tmp/servo-calibrator-i2c-open')
 
 outputs   = []
 i2c_open  = False   # True only while we hold the I2C bus
@@ -135,6 +140,15 @@ def set_ch(bus, addr, ch, counts):
     bus.write_byte_data(addr, base+3, counts >> 8)
 
 
+def _clear_state_file():
+    try:
+        _STATE_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    except Exception:
+        pass
+
+
 def do_open() -> str | None:
     """Claim the I2C bus: disable fppd's PCA9685 output then open smbus2.
 
@@ -150,6 +164,11 @@ def do_open() -> str | None:
         time.sleep(2)
     else:
         return 'Could not disable FPP PCA9685 output'
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _STATE_FILE.touch()
+    except Exception:
+        pass
     time.sleep(0.5)
     try:
         close_outputs(outputs)
@@ -158,6 +177,7 @@ def do_open() -> str | None:
         return None
     except Exception as exc:
         _set_fpp_pca9685_output(True)
+        _clear_state_file()
         return str(exc)
 
 
@@ -180,6 +200,7 @@ def do_close():
     outputs  = []
     i2c_open = False
     _set_fpp_pca9685_output(True)
+    _clear_state_file()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -278,9 +299,15 @@ def main():
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT,  shutdown)
 
-    # Re-enable FPP PCA9685 output in case a prior run left it disabled
-    # (e.g. daemon was killed with SIGKILL or crashed before do_close ran)
-    _set_fpp_pca9685_output(True)
+    # Only re-enable FPP's PCA9685 output if OUR prior run crashed while it
+    # was disabled for testing (state file still present — do_close() never
+    # ran to clear it). Don't touch it otherwise: some users (e.g. K2-Pi-Servo
+    # owners who never use the generic "Other" PCA9685 board) intentionally
+    # leave it disabled, and forcing it on at every boot was clobbering that.
+    if _STATE_FILE.exists():
+        print('[ServoCalibrator] Prior run left I2C bus claimed (crash?) — re-enabling FPP PCA9685 output.')
+        _set_fpp_pca9685_output(True)
+        _clear_state_file()
 
     server = HTTPServer((HOST, PORT_NUM), Handler)
     print(f'[ServoCalibrator] Daemon listening on {HOST}:{PORT_NUM} (I2C idle — send open to claim bus)', flush=True)
