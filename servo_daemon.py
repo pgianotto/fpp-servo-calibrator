@@ -9,16 +9,63 @@ action=close releases the bus and re-enables fppd's output immediately via
 the FPP API so other plugins (e.g. live-follow) are not affected.
 """
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 import json, signal, sys, time, urllib.request
 import smbus2
 
-CONFIG        = '/home/fpp/media/config/co-other.json'
 HOST          = '127.0.0.1'
 PORT_NUM      = 5003
 _CO_OTHER_API = 'http://localhost/api/channel/output/co-other'
 
 outputs   = []
 i2c_open  = False   # True only while we hold the I2C bus
+
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# Mirror stdout/stderr into FPP's log directory so this always-on service's
+# output shows up in FPP's log viewer and Support Zip, not just journalctl.
+
+class _TeeStream:
+    def __init__(self, *streams):
+        self._streams = streams
+
+    def write(self, data):
+        for s in self._streams:
+            try:
+                s.write(data)
+                s.flush()
+            except Exception:
+                pass
+
+    def flush(self):
+        for s in self._streams:
+            try:
+                s.flush()
+            except Exception:
+                pass
+
+
+def _init_logging():
+    log_dir = '/home/fpp/media/logs'
+    try:
+        with urllib.request.urlopen('http://localhost/api/settings/logDirectory',
+                                     timeout=3) as resp:
+            value = json.loads(resp.read()).get('value')
+            if value:
+                log_dir = value
+    except Exception:
+        pass  # fall back to the default above
+    try:
+        log_path = Path(log_dir) / 'plugin-fpp-servo-calibrator.log'
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_file = open(log_path, 'a', buffering=1)
+        sys.stdout = _TeeStream(sys.stdout, log_file)
+        sys.stderr = _TeeStream(sys.stderr, log_file)
+    except Exception as exc:
+        print(f'[ServoCalibrator] Could not open log file: {exc}')
+
+
+_init_logging()
 
 
 def _set_fpp_pca9685_output(enabled: bool) -> bool:
@@ -49,8 +96,10 @@ def _set_fpp_pca9685_output(enabled: bool) -> bool:
 
 
 def load_outputs():
-    with open(CONFIG) as f:
-        cfg = json.load(f)
+    # Read through FPP's API rather than parsing co-other.json directly —
+    # the file's on-disk format isn't a stable contract across FPP releases.
+    with urllib.request.urlopen(_CO_OTHER_API, timeout=3) as resp:
+        cfg = json.loads(resp.read())
     result = []
     for out in cfg.get('channelOutputs', []):
         if not out.get('ports'):

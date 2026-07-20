@@ -16,4 +16,4 @@ $ctx = stream_context_create(['http' => [
     'ignore_errors' => true,
 ]]);
 $result = @file_get_contents('http://127.0.0.1:5003/', false, $ctx);
-echo $result !== false ? $result : json_encode(['status' => 'error', 'message' => 'Servo daemon not running — check: sudo systemctl status fpp-servo-calibrator']);
+echo $result !== false ? $result : json_encode(['status' => 'error', 'message' => 'Servo daemon not running — check: systemctl status fpp-servo-calibrator']);

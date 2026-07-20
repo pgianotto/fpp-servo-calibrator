@@ -1,6 +1,6 @@
 <?php
-// Servo Calibrator — pure frontend, no daemon required.
-// Live testing: direct I2C writes via servo_ctl.py (PCA9685 registers).
+// Servo Calibrator — frontend for the fpp-servo-calibrator-api daemon.
+// Live testing: direct I2C writes via servo_daemon.py (PCA9685 registers).
 // Save: POST /api/channel/output/co-other with updated min/max/center/description.
 ?>
 

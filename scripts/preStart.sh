@@ -4,6 +4,6 @@
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 if ! systemctl is-enabled fpp-servo-calibrator.service &>/dev/null 2>&1; then
     echo "[fpp-servo-calibrator] Service missing — reinstalling after OS upgrade..."
-    sudo -u fpp git -C "$PLUGIN_DIR" pull --quiet 2>/dev/null || true
+    runuser -u fpp -- git -C "$PLUGIN_DIR" pull --quiet 2>/dev/null || true
     bash "$PLUGIN_DIR/fpp_install.sh"
 fi
