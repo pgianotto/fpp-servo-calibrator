@@ -57,8 +57,6 @@ printf '<IfModule mod_proxy.c>\n    ProxyPass        /fpp-servo-calibrator-api/ 
 ln -sf "$PROXY_CONF" /etc/apache2/conf-enabled/fpp-servo-calibrator-proxy.conf
 systemctl reload apache2 2>/dev/null || true
 
-chmod +x "$PLUGIN_DIR/scripts/preStart.sh"
-
 # Allow root (used by FPP's plugin manager) to run git in this directory.
 # Without this, git 2.35+ rejects pull/fetch from root in fpp-owned dirs.
 git config --system --add safe.directory "$PLUGIN_DIR" 2>/dev/null || true
