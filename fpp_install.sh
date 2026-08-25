@@ -4,19 +4,12 @@ set -euo pipefail
 PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "Installing Animatronic Servo Calibrator plugin..."
 
-# ── uv (fast Python package installer) — install via pip, not a curl|sh script ─
-export PATH="/usr/local/bin:$HOME/.local/bin:/root/.local/bin:$PATH"
-if ! command -v uv &>/dev/null; then
-    echo "Installing uv..."
-    # --break-system-packages is safe here: pip targets /usr/local/lib/python3.x/
-    # dist-packages, which dpkg doesn't track, so it can't conflict with apt.
-    python3 -m pip install --quiet --break-system-packages uv
-fi
-
-# ── smbus2 — system-wide via uv, same as FPP manages its own Python deps ──────
+# ── smbus2 — via system pip, same as FPP manages its own Python deps ──────────
 python3 -c "import smbus2" 2>/dev/null || {
     echo "Installing smbus2..."
-    uv pip install --system --break-system-packages --quiet smbus2
+    # --break-system-packages is safe here: pip targets /usr/local/lib/python3.x/
+    # dist-packages, which dpkg doesn't track, so it can't conflict with apt.
+    python3 -m pip install --quiet --break-system-packages smbus2
 }
 
 chmod +x "$PLUGIN_DIR/servo_daemon.py"
